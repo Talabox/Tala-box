@@ -18,7 +18,7 @@ pid_file = open("/home/pi/Documents/Talabox/pid.txt","w")
 pid_file.write(pid)
 pid_file.close()
 
-##def des constantes
+
 args = sys.argv
 nom_musique = args[1]
 #En pas par secondes, doit correspondre à la valeure donnée dans le script de l'arduino
@@ -63,65 +63,53 @@ GPIO.setup(butD2, GPIO.IN,pull_up_down=GPIO.PUD_DOWN)
 GPIO.setup(butH2, GPIO.IN,pull_up_down=GPIO.PUD_DOWN)
 GPIO.setup(butB2, GPIO.IN,pull_up_down=GPIO.PUD_DOWN)
 
-# ON a changé tabCommande[i][1] par tabCommande[0][1]
-#Pour assurer que c'est la première ligne du tabCommande qui devait changer.
+
+#During initialisation the first row of tabCommande will change 
+#according to the activation of the limit switches
 def callbackCap(channel):
+    #First movable arm
     if channel == butG :
         print("G")
-#         ser.write(b"G\n")
-        #ser.write(str.encode("S9100090000E"))
-        ser.write(str.encode("S9100090000E"))    #horiz butée gauche
-        
+        ser.write(str.encode("S9100090000E"))    #horiz left
         tabCommande[0][1]=100
-#         print(tabCommande)
-        
-        
+
     elif channel == butD :
         print("D")
-#         ser.write(b"D\n")
-        ser.write(str.encode("S9010090000E"))    #horiz butée droite
+        ser.write(str.encode("S9010090000E"))    #horiz right
         tabCommande[0][1]=0
-#         print(tabCommande)
-        
+
     elif channel == butB :
         print("B")
-#         ser.write(b"B\n")
-        ser.write(str.encode("S9001090000E"))    #verti butée bas
+        ser.write(str.encode("S9001090000E"))    #verti down
         tabCommande[0][2]=0
-#         print(tabCommande)
         
     elif channel == butH :
         print("H")
-#         ser.write(b"H\n")
-        ser.write(str.encode("S9000190000E"))   #verti butée haut
+        ser.write(str.encode("S9000190000E"))   #verti up
         tabCommande[0][2]=100
-#         print(tabCommande)
         
+    #Second movable arm 
     elif channel == butG2 :
         print("G2")
-#         ser.write(b"G2\n")
-        ser.write(str.encode("S9000091000E"))    #horiz butée gauche
+        ser.write(str.encode("S9000091000E"))    #horiz left
         tabCommande[0][3]=100
-#         print(tabCommande)
+
         
     elif channel == butD2 :
         print("D2")
-#         ser.write(b"D2\n")
-        ser.write(str.encode("S9000090100E"))    #horiz butée droite
+        ser.write(str.encode("S9000090100E"))    #horiz right
         tabCommande[0][3]=0
-#         print(tabCommande)
+
     elif channel == butB2 :
         print("B2")
-#         ser.write(b"B2\n")
-        ser.write(str.encode("S9000090010E"))    #verti butée bas
+        ser.write(str.encode("S9000090010E"))    #verti down
         tabCommande[0][4]=0
-#         print(tabCommande)
+
     elif channel == butH2 :
         print("H2")
-#         ser.write(b"H2\n")
-        ser.write(str.encode("S9000090001E"))   #verti butée haut
+        ser.write(str.encode("S9000090001E"))   #verti up
         tabCommande[0][4]=100
-#         print(tabCommande)
+
 
 
 GPIO.add_event_detect(butG, GPIO.RISING, callback=callbackCap, bouncetime=bounce)
@@ -138,20 +126,17 @@ GPIO.add_event_detect(butD2, GPIO.RISING, callback=callbackCap, bouncetime=bounc
 # #TODO fonction qui calcule la distance parcourue pour de vrai si jamais le chariot est trop lent afin de changer la case suivant
 # 
 
-
-#formate la consigne en intensité à transmettre à l'arduino
+#Transform int to string
 def intTOstr(a):
     if a<10:
         return str("0"+str(a)[0:1])
     else:
         return str(a)[0:2]
 
-
-#Création d'un tableau contenant toutes les commandes
+#Create table that contains all the movement commands (from the .csv file)
 def getTab():
     newTab = [[-0.1,1,1,1,1]]
     with open('/home/pi/Documents/Commandes/' + nom_musique + '.csv', 'r') as file:
-      #with open('/home/pi/Documents/Commandes/Luc Perera recherche rythmiques.csv', 'r') as file:
         reader = csv.reader(file, delimiter=";")
         for row in reader:
             new_row = [float(row[0]), float(row[1]), float(row[2]),float(row[3]), float(row[4])]
@@ -159,7 +144,7 @@ def getTab():
     file.close()
     return newTab
 
-
+#Transfom position command to speed command
 #passage d'une consigne de position en consigne de vitesse, en vérifiant les limites du moteur
 #numb permet d'indiquer le rail, 0 pour le 1er, 2 pour le 2eme
 def distTOvit(dx,dy,ts,numb):
@@ -172,8 +157,9 @@ def distTOvit(dx,dy,ts,numb):
         tabCommande[i][2+numb] = tabCommande[i-1][2+numb] + (99/dy)*(tabCommande[i][2+numb]-tabCommande[i-1][2+numb])
     return min(dx,99),min(dy,99)
 
-
-#passage des consignes en position en consignes pour l'arduino
+#Create arduino message from de tabCommande positions
+#The actual row and the previous row of tabCommande are compared and the 
+#movement is chosen depending on the relative position of the movable arms
 def asserv(tabNx , tabPv):
     t = tabNx[0]-tabPv[0]
     l = tabNx[1]-tabPv[1]
@@ -181,19 +167,23 @@ def asserv(tabNx , tabPv):
     l2 = tabNx[3]-tabPv[3]
     h2 = tabNx[4]-tabPv[4]
     if l>0:
-        if h>0: sens = 2 #droite, monter
-        else : sens = 3 #droite, descendre
+        if h>0: sens = 2 #right, up
+        else : sens = 3 #right, down
     else:
-        if h>0: sens = 0 #gauche, monter
-        else : sens = 1 #gauche, descendre
+        if h>0: sens = 0 #left, up
+        else : sens = 1 #left, down
     if l2>0:
-        if h2>0: sens2 = 2 #droite, monter
-        else : sens2 = 3 #droite, descendre
+        if h2>0: sens2 = 2 #right, up
+        else : sens2 = 3 #right, down
     else:
-        if h2>0: sens2 = 0 #gauche, monter
-        else : sens2 = 1 #gauche, descendre
+        if h2>0: sens2 = 0 #left, up
+        else : sens2 = 1 #left, down
     l,h = distTOvit(abs(l),abs(h),t,0)
     l2,h2 = distTOvit(abs(l2),abs(h2),t,2)
+    #First number: direction arm 1
+    #Second, third number: speed arm 1
+    #Fourth, fifth number: 
+    
     commande = str(sens)+intTOstr(l)+intTOstr(h)+str(sens2)+intTOstr(l2)+intTOstr(h2)
     return commande
 
