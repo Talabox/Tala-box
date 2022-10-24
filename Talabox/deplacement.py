@@ -187,105 +187,91 @@ def asserv(tabNx , tabPv):
     commande = str(sens)+intTOstr(l)+intTOstr(h)+str(sens2)+intTOstr(l2)+intTOstr(h2)
     return commande
 
-
-#initialise la position sur gauche et bas pour le 1er rail (x=0;y=0)
-#Noms "initPosition" et "initPosition2" selon le post-it (on a changé le sens)
-def initPosition2():
+#Initialise the position to the left and down for the first arm (x=0;y=0)
+def initPosition():
     global tabCommande
     while (tabCommande[0][3]==1 or tabCommande[0][4] == 1):
+        #Movement X and Y of the first arm
         if (tabCommande[0][3]==1 and tabCommande[0][4]==1):
-            #Selon arduino, si le message commence par 1 les moteurs se bouge en bas et en gauche
-            #POUR INITIALISER!!!!!(S1.........E)    
-            #Vitesse X=25
-            #Vitesse Y=10
-            #ON deplace X et Y
+            #If message starts by 1, the limit switches have not been activated yet, so the motors start work
+            #During the initialisation the arm moves until the correct limit switch
+            #Message in arduino: S1.........E   
+            #Speed X=25
+            #Speed Y=10
+            
             ser.write(str.encode("S1251010000E"))
-#             print(" deplacement l et h")
-#             print(tabCommande)
-             #ON deplace Y
+        #Movement Y of the first arm
         if tabCommande[0][3]==0 :
             ser.write(str.encode("S1001010000E"))
-#             print("deplacement h")
-#             print(tabCommande)
-            #ON deplace X
+        #Movement X of the first arm 
         if tabCommande[0][4]==0 :
             ser.write(str.encode("S1250010000E"))
-#             print("deplacement l")
-#             print(tabCommande)
-             
         time.sleep(0.1)
-        
+    #Stop the motors    
     ser.write(str.encode("S0000000000E"))
     
 
-#initialise la position sur gauche et bas pour le 2eme rail (x=0;y=0)
-def initPosition():
+#Initialise the position to the left and down for the second arm (x=0;y=0)
+def initPosition2():
     global tabCommande
     while (tabCommande[0][1]==1 or tabCommande[0][2] == 1):
+        #Movement X and Y of the second arm
         if (tabCommande[0][1]==1 and tabCommande[0][2]==1):
             ser.write(str.encode("S1000012510E"))
-#             print(" deplacement l2 et h2")
-#             print(tabCommande)
+        #Movement Y of the second arm
         if tabCommande[0][1]==0 :
             ser.write(str.encode("S1000010010E"))
-#             print(" deplacement h2")
-#             print(tabCommande)
+        #Movement X the second arm
         if tabCommande[0][2]==0 :
             ser.write(str.encode("S1000012500E"))
-#             print(" deplacement l2")
-#             print(tabCommande)
+
         time.sleep(0.1)
     ser.write(str.encode("S0000000000E"))
 
-#permet de passer le volume en commande selon la convention d'écriture d'omxplayer
+#Convert volume into a command according to omxplayer format
 def volumeMusique(valCommande):
     return (int(valCommande)-50)*19
 
 
-##Fait tout
-
+#All the functions above
 try:
-    print("TABCOMMANDE")
     tabCommande = getTab()
-    print("INIT1")
     initPosition()
-    print("INIT2")
     initPosition2()
     
-    print("COMMENECE")
+    print("Start")
     temps = time.time()
     subprocess.Popen(["omxplayer",'/home/pi/Documents/Musiques/' + nom_musique + '.wav'])
     #TODO time.sleep(0.3)
     for i in range(1,len(tabCommande)):
-        #check le fichier commande
+        #Check the file "commande.txt"
         commande = subprocess.check_output(['tail','-1','/home/pi/Documents/Talabox/commande.txt']).decode()
-#         print(commande)
-        #si la commande est de faire pause, on arrete les moteurs et la musique en pause
+        #If the command is 0, we stop the motors
         if int(commande[0])==0:
             ser.write(str.encode("S0000000000E"))
             subprocess.Popen(["dbuscontrol.sh","pause"])
-            # quand on est en pause on ne fait rien d'autre que check si on est plus en pause
             while int(commande[0])==0:
                 time.sleep(0.1)
                 commande = subprocess.check_output(['tail','-1','/home/pi/Documents/Talabox/commande.txt']).decode()
             subprocess.Popen(["dbuscontrol.sh","pause"])
             temps = time.time()
-        #on joue la musique et les déplacements
+        #If the command is 1, we play the music and start the movement
         elif int(commande[0])==1:
             vitesse = int(commande[2:4])
-            #si le volume est différent
             if int(volume)!=volumeMusique(commande[6:9]):
                 volume = str(volumeMusique(commande[6:9]))
                 subprocess.Popen(["pkill","omxplayer"])
                 tps = tabCommande[i][0]
                 time_omx = str(int(tps/3600))+ ":" + str(int((tps%3600)/60)) + ":" + str(int(tps%60))
                 subprocess.Popen(["omxplayer","--vol",volume,"-l",time_omx,'/home/pi/Documents/Musiques/' + nom_musique + '.wav'])
+            #Create message that will be passed through the arduino serial
             msg_ardui = asserv(tabCommande[i],tabCommande[i-1])
+            #Write the message at the serial
             ser.write(str.encode("S"+msg_ardui+"E"))
             temps = temps+(tabCommande[i][0]-tabCommande[i-1][0])
             time.sleep(max(temps-time.time(),0))
         else:
-            #pas un 0 ou un 1, erreur dans la commande, arrêt
+            #If the command is a different number than 0 or 1 there's an error so we stop the program
             subprocess.Popen(["pkill","omxplayer"])
             ser.write(str.encode("S0000000000E"))
             pid_file = open("pid.txt","w")
@@ -293,7 +279,8 @@ try:
             pid_file.close()
             sys.exit()
 
-except KeyboardInterrupt: #si un ctrl+c est entré, coupe proprement le programme
+#If we press ctrl+c we exit the program properly
+except KeyboardInterrupt: 
     subprocess.Popen(["pkill","omxplayer"])
     ser.write(str.encode("S0000000000E"))
     pid_file = open("/home/pi/Documents/Talabox/pid.txt","w")
@@ -301,7 +288,7 @@ except KeyboardInterrupt: #si un ctrl+c est entré, coupe proprement le programm
     pid_file.close()
     sys.exit()
 
-#coupe proprement le programme
+
 subprocess.Popen(["pkill","omxplayer"])
 ser.write(str.encode("S0000000000E"))
 pid_file = open("/home/pi/Documents/Talabox/pid.txt","w")
