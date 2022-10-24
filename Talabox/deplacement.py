@@ -1,16 +1,16 @@
 # -*- coding: UTF-8 -*-
 
 ##differentes importattions
-import serial  # bibliothèque permettant la communication série
-import time    # pour le délai d'attente entre les messages
-import subprocess #pour lancer des commandes bash
-import csv #pour lire le fichier
-import sys #pour fermer avec sys.exit()
+import serial  # Serial communication
+import time    # Delay between messages
+import subprocess #To launch bash commands
+import csv #To read .csv file
+import sys #To close using sys.exit()
 import os
 from numpy import sign
-import RPi.GPIO as GPIO #pour les pins et le threading
-GPIO.setmode(GPIO.BCM)  #choix d'une nomenclature des pins
-GPIO.setwarnings(False) #pour faire taire les conflits des pins supposées prises
+import RPi.GPIO as GPIO #For the pins and the threading
+GPIO.setmode(GPIO.BCM)  
+GPIO.setwarnings(False) #To silence conflicts on pins assumed to be taken
 
 ##Write Pid in txt file to kill this script
 pid = str(os.getpid())
